@@ -1,553 +1,162 @@
 <!DOCTYPE html>
-<html lang="ru" class="">
+<html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zip Tool - Локальный Архиватор</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-    
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-        input[type="file"] {
-            display: none;
-        }
-        .drag-over {
-            border-style: solid;
-            border-color: #3b82f6;
-            box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
-        }
-        .progress-bar-inner {
-            transition: width 0.3s ease-out;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Локальный ZIP Архиватор</title>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg:#f6f7fb;--panel:#fff;--panel-soft:#fafafa;--text:#0f172a;--muted:#6b7280;
+      --border:#e5e7eb;--accent:#2563eb;--accent-soft:rgba(37,99,235,.08);
+    }
+    [data-theme="dark"]{
+      --bg:#0b1020;--panel:#0f172a;--panel-soft:#111827;--text:#e5e7eb;--muted:#9ca3af;
+      --border:#1f2937;--accent:#60a5fa;--accent-soft:rgba(96,165,250,.12);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--text)}
+
+    .app{max-width:1200px;margin:0 auto;padding:28px}
+    header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+    header h1{font-size:20px;font-weight:700;letter-spacing:-.02em}
+
+    .theme-toggle{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:6px 10px;cursor:pointer;font-size:18px}
+
+    .tabs{display:flex;gap:6px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:6px;width:fit-content;margin-bottom:24px}
+    .tab{padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:500;color:var(--muted)}
+    .tab.active{background:var(--accent-soft);color:var(--accent)}
+
+    .panel{display:none;grid-template-columns:1.2fr .8fr;gap:24px}
+    .panel.active{display:grid}
+
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px}
+    .card h3{margin:0 0 12px;font-size:14px;font-weight:600}
+
+    .dropzone{border:2px dashed var(--border);border-radius:14px;padding:32px;text-align:center;background:var(--panel-soft)}
+    .dropzone.drag{border-color:var(--accent);background:var(--accent-soft)}
+    input[type=file]{display:none}
+
+    .actions{display:flex;gap:10px;justify-content:center;margin-top:14px}
+    button,.btn{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:8px 14px;font-weight:500;cursor:pointer}
+    button.secondary,.btn.secondary{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+    button:disabled{opacity:.5;cursor:not-allowed}
+
+    .progress{margin-top:14px}
+    .progress-bar{height:6px;background:var(--border);border-radius:999px;overflow:hidden}
+    .progress-bar span{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+    .progress-label{margin-top:6px;font-size:12px;color:var(--muted);text-align:right}
+
+    .tree{font-size:13px;line-height:1.6;user-select:none}
+    .tree-item{display:flex;align-items:center;gap:6px;padding:2px 0;cursor:default}
+    .tree-item:hover{background:var(--accent-soft)}
+    .tree-folder{font-weight:600;cursor:pointer}
+    .tree-indent{margin-left:18px}
+
+    .context{position:fixed;background:var(--panel);border:1px solid var(--border);border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.15);z-index:1000;display:none}
+    .context button{display:block;width:100%;padding:8px 14px;background:none;border:none;text-align:left;color:var(--text);cursor:pointer}
+    .context button:hover{background:var(--accent-soft)}
+
+    footer{margin-top:40px;text-align:center;font-size:12px;color:var(--muted)}
+    @media(max-width:900px){.panel.active{grid-template-columns:1fr}}
+  </style>
 </head>
-<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300">
-    <div class="container mx-auto max-w-4xl p-4 sm:p-6 lg:p-8 min-h-screen">
-        <header class="flex justify-between items-center mb-6">
-            <h1 class="text-3xl font-bold text-blue-600 dark:text-blue-500">Zip Tool</h1>
-            <button id="dark-mode-toggle" class="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-                <svg id="theme-icon-moon" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
-                <svg id="theme-icon-sun" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-            </button>
-        </header>
-        <div class="mb-6">
-            <div class="border-b border-gray-300 dark:border-gray-700">
-                <nav class="flex -mb-px space-x-6">
-                    <button id="tab-create" data-tab="create" class="tab-btn whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">
-                        Создать Архив
-                    </button>
-                    <button id="tab-extract" data-tab="extract" class="tab-btn whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">
-                        Извлечь из Архива
-                    </button>
-                </nav>
-            </div>
+<body>
+<div class="app">
+  <header>
+    <h1>Локальный ZIP Архиватор</h1>
+    <button class="theme-toggle" id="themeToggle">🌙</button>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="create">Создать</div>
+    <div class="tab" data-tab="extract">Извлечь</div>
+  </div>
+
+  <section class="panel active" id="create">
+    <div class="card">
+      <h3>Файлы</h3>
+      <div class="dropzone" id="createDrop">
+        <strong>Перетащите файлы или папки</strong>
+        <div class="actions">
+          <label class="btn secondary">Файлы<input type="file" multiple id="filePick"></label>
+          <label class="btn secondary">Папка<input type="file" webkitdirectory id="folderPick"></label>
         </div>
-        <main>
-            <div id="panel-create" class="tab-panel space-y-6">
-                <div id="drop-zone-create" class="border-2 border-dashed border-gray-400 dark:border-gray-600 rounded-xl p-8 text-center cursor-pointer transition-all">
-                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-4-4V7a4 4 0 014-4h10a4 4 0 014 4v5a4 4 0 01-4 4H7z"></path><path stroke-linecap="round" stroke-linejoin="round" d="M12 16v-4m0 0l3 3m-3-3l-3 3"></path></svg>
-                    <p class="mt-2 font-medium text-gray-700 dark:text-gray-300">Перетащите файлы или папки сюда</p>
-                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">или выберите на диске</p>
-                    <div class="mt-4 flex flex-wrap justify-center gap-4">
-                        <label for="file-input-create" class="px-5 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer">
-                            Выбрать файлы
-                        </label>
-                        <input id="file-input-create" type="file" multiple>
-                        <label for="folder-input-create" class="px-5 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer">
-                            Выбрать папку
-                        </label>
-                        <input id="folder-input-create" type="file" webkitdirectory directory>
-                    </div>
-                </div>
-                <div id="file-list-create-wrapper" class="hidden">
-                    <h3 class="text-lg font-semibold mb-3">Файлы для архивации:</h3>
-                    <div id="file-list-create" class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 max-h-64 overflow-y-auto divide-y divide-gray-200 dark:divide-gray-700">
-                    </div>
-                    <button id="clear-list-btn" class="mt-3 text-sm text-red-600 hover:text-red-800 dark:hover:text-red-400">Очистить список</button>
-                </div>
-                <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 space-y-4">
-                    <div>
-                        <label for="zip-name-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Имя архива</label>
-                        <input type="text" id="zip-name-input" value="archive.zip" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800">
-                    </div>
-                    <div id="progress-wrapper-create" class="hidden w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-                        <div id="progress-bar-create" class="progress-bar-inner bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
-                    </div>
-                    <p id="progress-label-create" class="text-sm text-center text-gray-600 dark:text-gray-400"></p>
-
-                    <button id="create-zip-btn" class="w-full bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg shadow hover:bg-blue-700 transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
-                        Создать .ZIP
-                    </button>
-                </div>
-            </div>
-            <div id="panel-extract" class="tab-panel hidden space-y-6">
-                <div id="drop-zone-extract" class="border-2 border-dashed border-gray-400 dark:border-gray-600 rounded-xl p-8 text-center cursor-pointer transition-all">
-                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                    <p class="mt-2 font-medium text-gray-700 dark:text-gray-300">Перетащите .ZIP архив сюда</p>
-                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">или выберите файл</p>
-                    <div class="mt-4">
-                        <label for="file-input-extract" class="px-5 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer">
-                            Выбрать .ZIP
-                        </label>
-                        <input id="file-input-extract" type="file" accept=".zip">
-                    </div>
-                </div>
-                <div id="progress-wrapper-extract" class="hidden w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-                    <div id="progress-bar-extract" class="progress-bar-inner bg-green-600 h-2.5 rounded-full" style="width: 0%"></div>
-                </div>
-                <p id="progress-label-extract" class="text-sm text-center text-gray-600 dark:text-gray-400"></p>
-                <div id="zip-contents-wrapper" class="hidden">
-                    <h3 class="text-lg font-semibold mb-3">Содержимое архива:</h3>
-                    <div id="zip-contents-list" class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 max-h-96 overflow-y-auto p-4 space-y-2">
-                    </div>
-                </div>
-            </div>
-            <footer class="mt-12 text-center text-sm text-gray-500 dark:text-gray-400">
-                <p>🔒 Все файлы обрабатываются локально в вашем браузере. Данные не загружаются на сервер.</p>
-            </footer>
-        </main>
+      </div>
+      <div class="tree" id="fileTree"></div>
     </div>
-    <div id="modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
-        <div class="fixed inset-0 bg-gray-900 bg-opacity-75 transition-opacity"></div>
-        <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-sm w-full p-6 text-center">
-            <div id="modal-icon" class="mx-auto flex items-center justify-center h-12 w-12 rounded-full">
-            </div>
-            <h3 id="modal-title" class="text-lg font-semibold mt-4"></h3>
-            <p id="modal-message" class="text-sm text-gray-600 dark:text-gray-300 mt-2"></p>
-            <button id="modal-close-btn" class="mt-6 w-full px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                Понятно
-            </button>
+    <div class="card">
+      <h3>Экспорт</h3>
+      <input id="zipName" value="archive.zip" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:var(--panel);color:var(--text)">
+      <div class="progress" id="createProgress" hidden>
+        <div class="progress-bar"><span></span></div>
+        <div class="progress-label"></div>
+      </div>
+      <button id="buildZip" disabled style="margin-top:14px">Создать ZIP</button>
+    </div>
+  </section>
+
+  <section class="panel" id="extract">
+    <div class="card">
+      <h3>Архив</h3>
+      <div class="dropzone" id="extractDrop">
+        <strong>ZIP файл</strong>
+        <div class="actions">
+          <label class="btn secondary">Выбрать<input type="file" accept=".zip" id="zipPick"></label>
         </div>
+      </div>
+      <div class="tree" id="zipTree"></div>
     </div>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            let filesToZip = new Map();
-            let loadedZip = null;
-            let currentTab = 'create';
-            const dom = {
-                html: document.documentElement,
-                darkModeToggle: document.getElementById('dark-mode-toggle'),
-                themeIconMoon: document.getElementById('theme-icon-moon'),
-                themeIconSun: document.getElementById('theme-icon-sun'),
-                tabs: {
-                    create: document.getElementById('tab-create'),
-                    extract: document.getElementById('tab-extract'),
-                },
-                panels: {
-                    create: document.getElementById('panel-create'),
-                    extract: document.getElementById('panel-extract'),
-                },
-                dropZoneCreate: document.getElementById('drop-zone-create'),
-                fileInputCreate: document.getElementById('file-input-create'),
-                folderInputCreate: document.getElementById('folder-input-create'),
-                fileListWrapper: document.getElementById('file-list-create-wrapper'),
-                fileListCreate: document.getElementById('file-list-create'),
-                clearListBtn: document.getElementById('clear-list-btn'),
-                zipNameInput: document.getElementById('zip-name-input'),
-                progressWrapperCreate: document.getElementById('progress-wrapper-create'),
-                progressBarCreate: document.getElementById('progress-bar-create'),
-                progressLabelCreate: document.getElementById('progress-label-create'),
-                createZipBtn: document.getElementById('create-zip-btn'),
-                dropZoneExtract: document.getElementById('drop-zone-extract'),
-                fileInputExtract: document.getElementById('file-input-extract'),
-                progressWrapperExtract: document.getElementById('progress-wrapper-extract'),
-                progressBarExtract: document.getElementById('progress-bar-extract'),
-                progressLabelExtract: document.getElementById('progress-label-extract'),
-                zipContentsWrapper: document.getElementById('zip-contents-wrapper'),
-                zipContentsList: document.getElementById('zip-contents-list'),
-                modal: document.getElementById('modal'),
-                modalIcon: document.getElementById('modal-icon'),
-                modalTitle: document.getElementById('modal-title'),
-                modalMessage: document.getElementById('modal-message'),
-                modalCloseBtn: document.getElementById('modal-close-btn'),
-            };
-            /**
+    <div class="card">
+      <h3>Извлечение</h3>
+      <div class="progress" id="extractProgress" hidden>
+        <div class="progress-bar"><span></span></div>
+        <div class="progress-label"></div>
+      </div>
+      <button id="downloadAll" disabled>Скачать всё</button>
+    </div>
+  </section>
 
-             * @param {'success' | 'error'} type
-             * @param {string} title
-             * @param {string} message
-             */
-            const showModal = (type, title, message) => {
-                if (type === 'success') {
-                    dom.modalIcon.className = 'mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 dark:bg-green-900';
-                    dom.modalIcon.innerHTML = `<svg class="h-6 w-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`;
-                } else {
-                    dom.modalIcon.className = 'mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900';
-                    dom.modalIcon.innerHTML = `<svg class="h-6 w-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>`;
-                }
-                dom.modalTitle.textContent = title;
-                dom.modalMessage.textContent = message;
-                dom.modal.classList.remove('hidden');
-            };
-            const hideModal = () => {
-                dom.modal.classList.add('hidden');
-            };
+  <footer>Локальный ZIP Архиватор. Файлы не покидают браузер</footer>
+</div>
 
-            /**
-             * @param {'create' | 'extract'} type
-             * @param {number} percent
-             * @param {string} [label='']
-             */
-            const updateProgress = (type, percent, label = '') => {
-                const wrapper = (type === 'create') ? dom.progressWrapperCreate : dom.progressWrapperExtract;
-                const bar = (type === 'create') ? dom.progressBarCreate : dom.progressBarExtract;
-                const textLabel = (type === 'create') ? dom.progressLabelCreate : dom.progressLabelExtract;
+<div class="context" id="contextMenu">
+  <button id="ctxDownload">Скачать</button>
+  <button id="ctxDelete">Удалить</button>
+</div>
 
-                if (percent > 0) {
-                    wrapper.classList.remove('hidden');
-                }
-                bar.style.width = `${percent}%`;
-                textLabel.textContent = label;
-
-                if (percent >= 100 || percent <= 0) {
-                    setTimeout(() => {
-                        wrapper.classList.add('hidden');
-                        textLabel.textContent = '';
-                    }, 1000);
-                }
-            };
-            /**
-             * @param {number} bytes
-             * @returns {string}
-             */
-            const formatBytes = (bytes) => {
-                if (bytes === 0) return '0 Bytes';
-                const k = 1024;
-                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-                const i = Math.floor(Math.log(bytes) / Math.log(k));
-                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-            };
-            /**
-             * @param {'create' | 'extract'} tabId
-             */
-            const switchTab = (tabId) => {
-                currentTab = tabId;
-                
-                const activeClasses = 'text-blue-600 dark:text-blue-500 border-blue-600 dark:border-blue-500';
-                const inactiveClasses = 'text-gray-500 dark:text-gray-400 border-transparent hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-700';
-
-                Object.values(dom.tabs).forEach(tab => tab.className = tab.dataset.tab === tabId ?
-                    `${tab.className.split(' ').slice(0, -5).join(' ')} ${activeClasses}` :
-                    `${tab.className.split(' ').slice(0, -5).join(' ')} ${inactiveClasses}`
-                );
-
-                Object.values(dom.panels).forEach(panel => panel.id === `panel-${tabId}` ?
-                    panel.classList.remove('hidden') :
-                    panel.classList.add('hidden')
-                );
-            };
-            /**
-             */
-            const toggleDarkMode = () => {
-                const isDark = dom.html.classList.toggle('dark');
-                localStorage.setItem('zip-tool-dark-mode', isDark);
-                dom.themeIconMoon.classList.toggle('hidden', isDark);
-                dom.themeIconSun.classList.toggle('hidden', !isDark);
-            };
-
-            /**
-             */
-            const loadTheme = () => {
-                if (localStorage.getItem('zip-tool-dark-mode') === 'true' ||
-                   (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches && !localStorage.getItem('zip-tool-dark-mode'))) {
-                    dom.html.classList.add('dark');
-                    dom.themeIconMoon.classList.add('hidden');
-                    dom.themeIconSun.classList.remove('hidden');
-                } else {
-                    dom.html.classList.remove('dark');
-                    dom.themeIconMoon.classList.remove('hidden');
-                    dom.themeIconSun.classList.add('hidden');
-                }
-            };
-            /**
-             * @param {FileList} fileList
-             */
-            const addFilesToZip = (fileList) => {
-                for (const file of fileList) {
-                    const path = file.webkitRelativePath || file.name;
-                    if (!filesToZip.has(path)) {
-                        filesToZip.set(path, file);
-                    }
-                }
-                renderCreateFileList();
-            };
-            /**
-             */
-            const renderCreateFileList = () => {
-                if (filesToZip.size === 0) {
-                    dom.fileListWrapper.classList.add('hidden');
-                    dom.createZipBtn.disabled = true;
-                    return;
-                }
-
-                dom.fileListCreate.innerHTML = '';
-                dom.fileListWrapper.classList.remove('hidden');
-                dom.createZipBtn.disabled = false;
-                const sortedPaths = [...filesToZip.keys()].sort();
-                sortedPaths.forEach(path => {
-                    const file = filesToZip.get(path);
-                    const fileEl = document.createElement('div');
-                    fileEl.className = 'p-3 flex justify-between items-center text-sm';
-                    fileEl.innerHTML = `
-                        <div class="flex-1 min-w-0">
-                            <p class="font-medium truncate text-gray-800 dark:text-gray-200">${path}</p>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">${formatBytes(file.size)}</p>
-                        </div>
-                        <button data-path="${path}" class="remove-file-btn ml-4 flex-shrink-0 p-1.5 rounded-full text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-red-600 dark:hover:text-red-500 transition-colors">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                        </button>
-                    `;
-                    dom.fileListCreate.appendChild(fileEl);
-                });
-            };
-            /**
-             */
-            const handleCreateZip = async () => {
-                if (filesToZip.size === 0) {
-                    showModal('error', 'Нет файлов', 'Пожалуйста, добавьте файлы для архивации.');
-                    return;
-                }
-
-                const zipName = dom.zipNameInput.value || 'archive.zip';
-                dom.createZipBtn.disabled = true;
-                updateProgress('create', 1, 'Инициализация...');
-
-                try {
-                    const zip = new JSZip();
-                    for (const [path, file] of filesToZip.entries()) {
-                        zip.file(path, file);
-                    }
-                    const blob = await zip.generateAsync(
-                        { type: "blob" },
-                        (metadata) => {
-                            // metadata.percent
-                            updateProgress('create', metadata.percent.toFixed(0), `Сжатие: ${metadata.percent.toFixed(0)}%`);
-                        }
-                    );
-                    saveAs(blob, zipName);
-                    updateProgress('create', 100, 'Завершено!');
-                    showModal('success', 'Архив создан', `Файл ${zipName} успешно сохранен.`);
-
-                } catch (err) {
-                    console.error('Ошибка при создании ZIP:', err);
-                    showModal('error', 'Ошибка', 'Не удалось создать ZIP-архив. ' + err.message);
-                    updateProgress('create', 0);
-                } finally {
-                    dom.createZipBtn.disabled = false;
-                }
-            };
-
-            /**
-             * @param {File} file
-             */
-            const loadZipFile = async (file) => {
-                if (!file) return;
-                
-                loadedZip = null;
-                dom.zipContentsWrapper.classList.add('hidden');
-                dom.zipContentsList.innerHTML = '';
-                updateProgress('extract', 1, 'Чтение файла...');
-
-                try {
-                    const data = await file.arrayBuffer();
-                    loadedZip = await JSZip.loadAsync(data, {
-                        update: (metadata) => {
-                            updateProgress('extract', metadata.percent.toFixed(0), `Распаковка: ${metadata.percent.toFixed(0)}%`);
-                        }
-                    });
-
-                    updateProgress('extract', 100, 'Готово!');
-                    renderExtractFileList();
-
-                } catch (err) {
-                    console.error('Ошибка при чтении ZIP:', err);
-                    showModal('error', 'Ошибка', 'Не удалось прочитать ZIP-файл. Файл поврежден или имеет неверный формат. ' + err.message);
-                    updateProgress('extract', 0);
-                }
-            };      
-            /**
-             */
-            const renderExtractFileList = () => {
-                if (!loadedZip) return;
-
-                dom.zipContentsList.innerHTML = '';
-                const tree = {};
-                Object.keys(loadedZip.files).forEach(path => {
-                    const file = loadedZip.files[path];
-                    const parts = path.split('/').filter(p => p.length > 0);
-                    let currentLevel = tree;
-
-                    parts.forEach((part, index) => {
-                        if (index === parts.length - 1 && !file.dir) {
-                            currentLevel[part] = file;
-                        } else {
-                            if (!currentLevel[part]) {
-                                currentLevel[part] = { _isDir: true, _name: part, _files: {} };
-                            }
-                            currentLevel = currentLevel[part]._files;
-                        }
-                    });
-                });
-                const renderNode = (node, level = 0) => {
-                    const container = document.createElement('div');
-                    container.style.paddingLeft = `${level * 20}px`;
-
-                    Object.keys(node).sort().forEach(key => {
-                        const item = node[key];
-                        if (item._isDir) {
-                            const dirEl = document.createElement('div');
-                            dirEl.className = 'p-1 font-medium text-gray-800 dark:text-gray-200';
-                            dirEl.innerHTML = `
-                                <span class="flex items-center">
-                                    <svg class="w-5 h-5 mr-2 text-yellow-500" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"></path></svg>
-                                    ${item._name}
-                                </span>
-                            `;
-                            container.appendChild(dirEl);
-                            container.appendChild(renderNode(item._files, level + 1));
-                        } else {
-                            const fileEl = document.createElement('div');
-                            fileEl.className = 'flex justify-between items-center text-sm p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700';
-                            fileEl.innerHTML = `
-                                <span class="flex items-center min-w-0">
-                                    <svg class="w-5 h-5 mr-2 flex-shrink-0 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"></path></svg>
-                                    <span class="truncate">${item.name.split('/').pop()}</span>
-                                </span>
-                                <button data-path="${item.name}" class="download-file-btn ml-4 flex-shrink-0 px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs font-medium rounded-full hover:bg-blue-200 dark:hover:bg-blue-800">
-                                    Скачать
-                                </button>
-                            `;
-                            container.appendChild(fileEl);
-                        }
-                    });
-                    return container;
-                };
-
-                dom.zipContentsList.appendChild(renderNode(tree));
-                dom.zipContentsWrapper.classList.remove('hidden');
-            };
-            
-            /**
-             * @param {string} path
-             */
-            const handleDownloadFile = async (path) => {
-                if (!loadedZip) return;
-                
-                try {
-                    const file = loadedZip.file(path);
-                    if (file) {
-                        const blob = await file.async("blob");
-                        const fileName = path.split('/').pop();
-                        saveAs(blob, fileName);
-                    }
-                } catch (err) {
-                    console.error('Ошибка при скачивании файла:', err);
-                    showModal('error', 'Ошибка', 'Не удалось скачать файл. ' + err.message);
-                }
-            };
-            dom.darkModeToggle.addEventListener('click', toggleDarkMode);
-            dom.tabs.create.addEventListener('click', () => switchTab('create'));
-            dom.tabs.extract.addEventListener('click', () => switchTab('extract'));
-            dom.modalCloseBtn.addEventListener('click', hideModal);
-            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                dom.dropZoneCreate.addEventListener(eventName, (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                }, false);
-            });
-            ['dragenter', 'dragover'].forEach(eventName => {
-                dom.dropZoneCreate.addEventListener(eventName, () => dom.dropZoneCreate.classList.add('drag-over'), false);
-            });
-            ['dragleave', 'drop'].forEach(eventName => {
-                dom.dropZoneCreate.addEventListener(eventName, () => dom.dropZoneCreate.classList.remove('drag-over'), false);
-            });
-            dom.dropZoneCreate.addEventListener('drop', (e) => {
-                const items = e.dataTransfer.items;
-                if (items) {
-                    const fileList = [];
-                    const traverseFileTree = (item) => {
-                        return new Promise((resolve) => {
-                            if (item.isFile) {
-                                item.file(file => {
-                                    fileList.push(file);
-                                    resolve();
-                                });
-                            } else if (item.isDirectory) {
-                                const dirReader = item.createReader();
-                                dirReader.readEntries(entries => {
-                                    const promises = entries.map(entry => traverseFileTree(entry.webkitGetAsEntry ? entry.webkitGetAsEntry() : entry));
-                                    Promise.all(promises).then(resolve);
-                                });
-                            }
-                        });
-                    };
-                    addFilesToZip(e.dataTransfer.files);
-                } else {
-                     addFilesToZip(e.dataTransfer.files);
-                }
-            });
-            dom.fileInputCreate.addEventListener('change', (e) => addFilesToZip(e.target.files));
-            dom.folderInputCreate.addEventListener('change', (e) => addFilesToZip(e.target.files));
-            dom.createZipBtn.addEventListener('click', handleCreateZip);
-            dom.clearListBtn.addEventListener('click', () => {
-                filesToZip.clear();
-                renderCreateFileList();
-            });
-            dom.fileListCreate.addEventListener('click', (e) => {
-                const removeBtn = e.target.closest('.remove-file-btn');
-                if (removeBtn) {
-                    const path = removeBtn.dataset.path;
-                    filesToZip.delete(path);
-                    renderCreateFileList();
-                }
-            });
-            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                dom.dropZoneExtract.addEventListener(eventName, (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                }, false);
-            });
-            ['dragenter', 'dragover'].forEach(eventName => {
-                dom.dropZoneExtract.addEventListener(eventName, () => dom.dropZoneExtract.classList.add('drag-over'), false);
-            });
-            ['dragleave', 'drop'].forEach(eventName => {
-                dom.dropZoneExtract.addEventListener(eventName, () => dom.dropZoneExtract.classList.remove('drag-over'), false);
-            });
-            dom.dropZoneExtract.addEventListener('drop', (e) => {
-                if (e.dataTransfer.files.length > 0) {
-                    const file = e.dataTransfer.files[0];
-                    if (file.name.endsWith('.zip')) {
-                        loadZipFile(file);
-                    } else {
-                        showModal('error', 'Неверный файл', 'Пожалуйста, перетащите .ZIP файл.');
-                    }
-                }
-            });
-            
-            dom.fileInputExtract.addEventListener('change', (e) => {
-                if (e.target.files.length > 0) {
-                    loadZipFile(e.target.files[0]);
-                }
-            });
-            
-            dom.zipContentsList.addEventListener('click', (e) => {
-                const downloadBtn = e.target.closest('.download-file-btn');
-                if (downloadBtn) {
-                    handleDownloadFile(downloadBtn.dataset.path);
-                }
-            });
-            loadTheme();
-            switchTab('create');
-            dom.createZipBtn.disabled = true;
-        });
-    </script>
-
+<script>
+const root=document.documentElement;const btnTheme=document.getElementById('themeToggle');
+root.dataset.theme=localStorage.getItem('zip-theme')||'light';
+btnTheme.textContent=root.dataset.theme==='dark'?'☀️':'🌙';
+btnTheme.onclick=()=>{root.dataset.theme=root.dataset.theme==='dark'?'light':'dark';localStorage.setItem('zip-theme',root.dataset.theme);btnTheme.textContent=root.dataset.theme==='dark'?'☀️':'🌙'};
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{document.querySelectorAll('.tab,.panel').forEach(e=>e.classList.remove('active'));t.classList.add('active');document.getElementById(t.dataset.tab).classList.add('active')});
+function updateProgress(w,p,l){w.hidden=false;w.querySelector('span').style.width=p+'%';w.querySelector('.progress-label').textContent=l;if(p>=100)setTimeout(()=>w.hidden=true,800)}
+function buildTree(container, tree, level=0){for(const [name,node] of Object.entries(tree)){const row=document.createElement('div');row.className='tree-item'+(level?' tree-indent':'');if(node._file){row.textContent='📄 '+name;row.dataset.path=node._file.name;row.dataset.type='file'}else{row.innerHTML='<span class="tree-folder">📁 '+name+'</span>';row.dataset.type='folder';row.onclick=()=>child.hidden=!child.hidden}
+container.appendChild(row);if(!node._file){const child=document.createElement('div');child.hidden=false;container.appendChild(child);buildTree(child,node,level+1)}}}
+const files=new Map();const fileTree=document.getElementById('fileTree');const buildBtn=document.getElementById('buildZip');const createProgress=document.getElementById('createProgress');
+function rebuildCreateTree(){const t={};files.forEach((f,p)=>{p.split('/').reduce((a,c,i,arr)=>a[c]||(a[c]=i===arr.length-1?{_file:f}:{}) ,t)});fileTree.innerHTML='';buildTree(fileTree,t);buildBtn.disabled=!files.size}
+function addFiles(list){[...list].forEach(f=>files.set(f.webkitRelativePath||f.name,f));rebuildCreateTree()}
+document.getElementById('filePick').onchange=e=>addFiles(e.target.files);document.getElementById('folderPick').onchange=e=>addFiles(e.target.files);
+buildBtn.onclick=async()=>{const zip=new JSZip();files.forEach((f,p)=>zip.file(p,f));const blob=await zip.generateAsync({type:'blob'},m=>updateProgress(createProgress,m.percent|0,'Сжатие '+(m.percent|0)+'%'));saveAs(blob,document.getElementById('zipName').value||'archive.zip')};
+let loadedZip;const zipTree=document.getElementById('zipTree');const extractProgress=document.getElementById('extractProgress');const downloadAll=document.getElementById('downloadAll');
+document.getElementById('zipPick').onchange=async e=>{loadedZip=await JSZip.loadAsync(e.target.files[0],m=>updateProgress(extractProgress,m.percent|0,'Чтение '+(m.percent|0)+'%'));const t={};Object.values(loadedZip.files).forEach(f=>!f.dir&&f.name.split('/').reduce((a,c,i,arr)=>a[c]||(a[c]=i===arr.length-1?{_file:f}:{}) ,t));zipTree.innerHTML='';buildTree(zipTree,t);downloadAll.disabled=false};
+downloadAll.onclick=async()=>{const z=new JSZip();for(const f of Object.values(loadedZip.files))if(!f.dir)z.file(f.name,await f.async('blob'));saveAs(await z.generateAsync({type:'blob'}),'extracted.zip')};
+const ctx=document.getElementById('contextMenu');let ctxTarget=null;
+document.addEventListener('contextmenu',e=>{const item=e.target.closest('.tree-item');if(!item||item.dataset.type!=='file')return; e.preventDefault();ctxTarget=item;ctx.style.left=e.pageX+'px';ctx.style.top=e.pageY+'px';ctx.style.display='block'});
+document.addEventListener('click',()=>ctx.style.display='none');
+document.getElementById('ctxDownload').onclick=async()=>{const p=ctxTarget.dataset.path;const f=loadedZip?loadedZip.file(p):files.get(p);if(f){const blob=loadedZip?await f.async('blob'):f;saveAs(blob,p.split('/').pop())}};
+document.getElementById('ctxDelete').onclick=()=>{if(!loadedZip&&ctxTarget){files.delete(ctxTarget.dataset.path);rebuildCreateTree()}};
+function dnd(z,cb){['dragover','dragenter'].forEach(e=>z.addEventListener(e,ev=>{ev.preventDefault();z.classList.add('drag')}));['dragleave','drop'].forEach(e=>z.addEventListener(e,ev=>{ev.preventDefault();z.classList.remove('drag')}));z.addEventListener('drop',e=>cb(e.dataTransfer.files))}
+dnd(document.getElementById('createDrop'),addFiles);
+dnd(document.getElementById('extractDrop'),f=>document.getElementById('zipPick').files=f);
+</script>
 </body>
 </html>
